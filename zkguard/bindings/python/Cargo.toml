@@ -1,0 +1,18 @@
+[package]
+name = "zkguard-python"
+version = "0.2.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "_zkguard"
+crate-type = ["cdylib"]
+
+[dependencies]
+zkguard = { path = "../../crates/zkguard-core", features = ["std", "llm-guard", "serde"] }
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38"] }
+
+[features]
+default = ["vault-encrypt"]
+stark = ["zkguard/full-p3"]
+vault-encrypt = ["zkguard/vault-encrypt"]

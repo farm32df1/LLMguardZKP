@@ -1,0 +1,105 @@
+[package]
+name = "zkguard"
+version = "0.1.0"
+edition = "2021"
+authors = ["imbanjang"]
+description = "ZK-based credential protection for LLM workflows — prevents API key leakage using Plonky3 STARK commitments"
+license = "MIT OR Apache-2.0"
+keywords = ["cryptography", "zero-knowledge", "stark", "llm", "api-key-protection"]
+categories = ["cryptography", "authentication"]
+
+[lib]
+name = "zkguard"
+path = "src/lib.rs"
+
+[dependencies]
+# Plonky3 STARK framework (required core)
+p3-field       = { version = "0.1", default-features = false }
+p3-goldilocks  = { version = "0.1", default-features = false }
+p3-matrix      = { version = "0.1", default-features = false }
+p3-air         = { version = "0.1", default-features = false }
+p3-poseidon2   = { version = "0.1", default-features = false }
+p3-symmetric   = { version = "0.1", default-features = false }
+
+# Plonky3 STARK prover/verifier (full-p3 feature)
+p3-commit      = { version = "0.1", default-features = false, optional = true }
+p3-uni-stark   = { version = "0.1", default-features = false, optional = true }
+p3-challenger  = { version = "0.1", default-features = false, optional = true }
+p3-fri         = { version = "0.1", default-features = false, optional = true }
+p3-merkle-tree = { version = "0.1", default-features = false, optional = true }
+p3-dft         = { version = "0.1", default-features = false, optional = true }
+
+# Deterministic RNG for Poseidon2 initialization
+rand       = { version = "0.8", default-features = false }
+rand_chacha = { version = "0.3", default-features = false }
+
+# Memory security: zeroize secrets on drop
+zeroize = { version = "1.7", default-features = false, features = ["alloc", "derive"] }
+
+# Serialization (optional)
+serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
+bincode = { version = "1.3", optional = true }
+
+# LLM guard: secret scanning (std only)
+regex = { version = "1.10", optional = true }
+
+# OS CSPRNG (std only, for vault salt generation)
+getrandom = { version = "0.2", default-features = false, optional = true }
+
+# HTTP client for LLM API proxy (blocking mode for simplicity)
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"], optional = true }
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"], optional = true }
+
+# Vault encryption (AES-256-GCM + Argon2id key derivation)
+aes-gcm = { version = "0.10", optional = true }
+argon2 = { version = "0.5", default-features = false, features = ["alloc"], optional = true }
+
+[dev-dependencies]
+rand        = "0.8"
+rand_chacha = "0.3"
+criterion   = "0.5"
+proptest    = "1.4"
+test-case   = "3.3"
+
+[features]
+default = ["alloc", "full-p3", "std"]
+
+# Heap allocation (required for most use cases)
+alloc = []
+
+# Full Plonky3 STARK prover/verifier
+full-p3 = ["p3-commit", "p3-uni-stark", "p3-challenger", "p3-fri", "p3-merkle-tree", "p3-dft"]
+
+# Standard library (enables OS CSPRNG, regex scanning, file I/O)
+std = ["alloc", "full-p3", "getrandom", "getrandom/std"]
+
+# JSON/binary serialization support
+serde = ["dep:serde", "dep:serde_json", "dep:bincode"]
+
+# LLM API key protection layer (requires std)
+llm-guard = ["std", "dep:regex"]
+
+# LLM API proxy with HTTP client (requires llm-guard)
+llm-proxy = ["llm-guard", "dep:reqwest"]
+
+# Vault encryption (AES-256-GCM + Argon2id)
+vault-encrypt = ["llm-guard", "dep:aes-gcm", "dep:argon2"]
+
+# CLI binary
+cli = ["llm-guard", "serde", "dep:clap"]
+
+[[example]]
+name = "basic_proof"
+required-features = ["std"]
+
+[[example]]
+name = "key_protection"
+required-features = ["llm-guard"]
+
+[[bin]]
+name = "zkguard"
+path = "src/bin/main.rs"
+required-features = ["cli"]

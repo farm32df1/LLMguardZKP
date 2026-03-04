@@ -1,0 +1,87 @@
+# Rust
+/target/
+**/target/
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.whl
+*.so
+*.dylib
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# zkguard specific
+*.bin
+*.proof
+*.enc
+
+# Secrets (never commit)
+.env
+.env.*
+*.pem
+*.key
+
+# Pytest / Coverage
+.pytest_cache/
+htmlcov/
+.coverage
+*.profraw
+*.profdata
+lcov.info
+
+# Python tools cache
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# maturin
+bindings/python/target/
+
+# Windows Python extensions
+*.pyd
+
+# macOS debug symbols
+*.dSYM/
+
+# Windows native / Object files
+*.dll
+*.o
+*.a
+
+# Logs
+*.log
+
+# Node.js (future v0.4)
+node_modules/
+
+# proptest regression files
+proptest-regressions/
+**/proptest-regressions/
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Temporary files
+*.tmp
+*.bak
