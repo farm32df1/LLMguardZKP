@@ -2,7 +2,7 @@
 
 ## Overview
 
-zkguard is a Rust library that protects API keys and secrets from leaking into LLM context windows. It combines **context sanitization** (detect and replace keys with opaque tokens) with **zero-knowledge proofs** (prove key ownership without revealing the key).
+zkguard is a security toolkit that automatically detects and removes API keys from LLM prompts before they leave your machine. It combines **context sanitization** (detect and replace keys), **reverse proxy** (transparent protection for any app), and **zero-knowledge proofs** (prove key ownership without revealing the key).
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

@@ -1,5 +1,9 @@
 # zkguard Usage Guide
 
+> **LLM API 키 유출 자동 방지 보안 툴킷 (+ 영지식증명 기반 키 소유 검증)**
+>
+> Automatically detects and removes API keys from LLM prompts before they leave your machine.
+
 ## How It Works (Important)
 
 zkguard runs **locally on your machine**, not on the LLM server. The scanning and key replacement happen **before** any text leaves your computer.
@@ -8,10 +12,10 @@ zkguard runs **locally on your machine**, not on the LLM server. The scanning an
 User input: "Call API with sk-ant-api03-AAAA..."
       │
       ▼  ← LOCAL (your machine, Rust/Python code)
- [zkguard.sanitize()]
+ [zkguard: regex scan + entropy analysis]
       │
       ▼
- Safe text: "Call API with {{ZKGUARD:a3f2...}}"
+ Safe text: "Call API with [REDACTED]"
       │
       ▼  ← NETWORK (sent to LLM provider)
  LLM (Claude, GPT, etc.)  ← never sees the real key
@@ -22,32 +26,43 @@ The LLM does not scan your keys. zkguard scans them locally and replaces them be
 ## Table of Contents
 
 1. [Installation](#installation)
-2. [Quick Start — Easy API (For Everyone)](#quick-start--easy-api-for-everyone)
-3. [Quick Start — Full API (For Developers)](#quick-start--full-api-for-developers)
-4. [Quick Start (Rust)](#quick-start-rust)
-5. [API Key Scanning](#api-key-scanning)
-6. [Sanitizing LLM Prompts](#sanitizing-llm-prompts)
-7. [Processing LLM Output](#processing-llm-output)
-8. [Encrypted Vault](#encrypted-vault)
-9. [ZK Proofs](#zk-proofs)
-10. [LangChain Integration](#langchain-integration)
-11. [Rust CLI](#rust-cli)
-12. [Security Notes](#security-notes)
+2. [Proxy Server (Easiest)](#proxy-server-easiest--protects-any-app)
+3. [Quick Start — Easy API (Python)](#quick-start--easy-api-for-everyone)
+4. [Quick Start — Full API (Developers)](#quick-start--full-api-for-developers)
+5. [Quick Start (Rust)](#quick-start-rust)
+6. [CLI](#cli)
+7. [API Key Scanning](#api-key-scanning)
+8. [Sanitizing LLM Prompts](#sanitizing-llm-prompts)
+9. [Processing LLM Output](#processing-llm-output)
+10. [Encrypted Vault](#encrypted-vault)
+11. [ZK Proofs](#zk-proofs)
+12. [LangChain Integration](#langchain-integration)
+13. [Security Notes](#security-notes)
 
 ---
 
 ## Installation
 
-### Python (Recommended for LLM users)
+### CLI (One Command — macOS / Linux)
+
+```bash
+curl -sSf https://raw.githubusercontent.com/farm32df1/LLMguardZKP/main/zkguard/install.sh | sh
+```
+
+Or build from source:
+
+```bash
+cargo build -p zkguard --features cli,proxy-server,vault-encrypt --release
+cp target/release/zkguard /usr/local/bin/
+```
+
+### Python
 
 ```bash
 # Build from source (requires Rust toolchain)
 cd bindings/python
 pip install maturin
-maturin develop --features stark
-
-# Or install the wheel directly
-pip install zkguard-0.2.0-cp38-abi3-*.whl
+maturin develop --features stark,vault-encrypt
 ```
 
 ### Rust
@@ -63,6 +78,49 @@ zkguard = { path = "crates/zkguard-core", features = ["llm-guard"] }
 ```bash
 pip install zkguard langchain-core
 ```
+
+---
+
+## Proxy Server (Easiest — Protects Any App)
+
+The proxy sits between your app (OpenClaw, custom chatbot, etc.) and the LLM API. All prompts are automatically scanned and API keys are removed before reaching the LLM server.
+
+```bash
+# Start the proxy
+zkguard proxy --port 8080 --provider anthropic
+
+# For OpenAI
+zkguard proxy --port 8080 --provider openai
+```
+
+Then point your app's API URL to `http://localhost:8080` instead of the real API URL.
+
+```
+Your App → POST http://localhost:8080/v1/messages
+                       │
+                ┌──────▼──────┐
+                │ zkguard     │
+                │ proxy       │
+                │             │
+                │ 1. Parse    │
+                │ 2. Scan     │  ← API keys caught here
+                │ 3. Remove   │
+                │ 4. Forward  │
+                └──────┬──────┘
+                       │
+             api.anthropic.com
+```
+
+**What it does:**
+- Scans all request body text for API key patterns (Anthropic, OpenAI, AWS, Google AI)
+- Replaces detected keys with `[REDACTED]`
+- Forwards the cleaned request to the real LLM API
+- Returns the LLM response as-is
+
+**What it does NOT do:**
+- Does not touch HTTP headers (your app's auth headers pass through normally)
+- Does not scan images or binary attachments
+- Does not modify LLM responses
 
 ---
 
@@ -418,26 +476,26 @@ handler.reset()
 
 ---
 
-## Rust CLI
+## CLI
 
 ```bash
-# Build the CLI
-cargo build --features cli -p zkguard
+# Scan text for API keys
+zkguard scan --text "my key is sk-ant-api03-..."
 
-# Scan text for keys
-echo "key=sk-ant-api03-AAAA..." | cargo run --features cli -p zkguard -- scan
+# Sanitize text (replace keys with tokens)
+zkguard sanitize --text "key=AKIAIOSFODNN7EXAMPLE"
 
-# Sanitize text
-echo "key=AKIAIOSFODNN7EXAMPLE" | cargo run --features cli -p zkguard -- sanitize
+# Start proxy server (protects any app)
+zkguard proxy --port 8080 --provider anthropic
 
-# Generate a ZK proof
-cargo run --features cli -p zkguard -- prove --elements 115,107,45 --output proof.bin
+# Generate a ZK proof of key ownership
+zkguard prove --key "secret" --output proof.bin
 
-# Verify a proof
-cargo run --features cli -p zkguard -- verify --input proof.bin
+# Verify a ZK proof
+zkguard verify --proof proof.bin
 
-# Full demo
-cargo run --features cli -p zkguard -- demo
+# Full demo (sanitize + prove + verify)
+zkguard demo
 ```
 
 ---

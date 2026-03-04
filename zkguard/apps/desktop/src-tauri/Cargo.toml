@@ -1,0 +1,16 @@
+[package]
+name = "zkguard-desktop"
+version = "0.2.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+zkguard = { path = "../../../crates/zkguard-core", features = ["llm-guard", "serde", "proxy-server"] }
+tauri = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

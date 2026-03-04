@@ -1,53 +1,66 @@
 # zkguard 사용 가이드
 
+> **LLM 사용 시 API 키 유출을 자동 방지하는 보안 툴킷 (+ 영지식증명 기반 키 소유 검증)**
+
 ## 동작 원리 (중요)
 
-zkguard는 LLM 서버가 아닌 **사용자의 로컬 머신**에서 실행됩니다. 키 스캔과 교체는 텍스트가 컴퓨터를 떠나기 **전에** 일어납니다.
+zkguard는 LLM 서버가 아닌 **사용자의 로컬 머신**에서 실행됩니다. 키 스캔과 제거는 텍스트가 컴퓨터를 떠나기 **전에** 일어납니다.
 
 ```
 사용자 입력: "API 호출에 sk-ant-api03-AAAA... 사용"
       │
-      ▼  ← 로컬 (사용자 PC, Rust/Python 코드)
- [zkguard.sanitize()]
+      ▼  ← 로컬 (사용자 PC)
+ [zkguard: regex 패턴 + 엔트로피 분석]
       │
       ▼
- 안전한 텍스트: "API 호출에 {{ZKGUARD:a3f2...}} 사용"
+ 안전한 텍스트: "API 호출에 [REDACTED] 사용"
       │
       ▼  ← 네트워크 (LLM 서버로 전송)
  LLM (Claude, GPT 등)  ← 실제 키를 절대 볼 수 없음
 ```
 
-LLM이 키를 스캔하는 것이 아닙니다. zkguard가 로컬에서 스캔하고, LLM이 텍스트를 받기 전에 교체합니다.
+LLM이 키를 스캔하는 것이 아닙니다. zkguard가 로컬에서 스캔하고, LLM이 텍스트를 받기 전에 제거합니다.
 
 ## 목차
 
 1. [설치](#설치)
-2. [빠른 시작 — 간편 API (모두를 위한)](#빠른-시작--간편-api-모두를-위한)
-3. [빠른 시작 — 전체 API (개발자용)](#빠른-시작--전체-api-개발자용)
-4. [빠른 시작 (Rust)](#빠른-시작-rust)
-5. [API 키 스캔](#api-키-스캔)
-6. [LLM 프롬프트 보호](#llm-프롬프트-보호)
-7. [LLM 출력 처리](#llm-출력-처리)
-8. [암호화 Vault](#암호화-vault)
-9. [ZK 증명](#zk-증명)
-10. [LangChain 통합](#langchain-통합)
-11. [Rust CLI](#rust-cli)
-12. [보안 참고사항](#보안-참고사항)
+2. [프록시 서버 (가장 쉬움)](#프록시-서버-가장-쉬움--모든-앱-보호)
+3. [빠른 시작 — 간편 API (Python)](#빠른-시작--간편-api-모두를-위한)
+4. [빠른 시작 — 전체 API (개발자용)](#빠른-시작--전체-api-개발자용)
+5. [빠른 시작 (Rust)](#빠른-시작-rust)
+6. [CLI](#cli)
+7. [API 키 스캔](#api-키-스캔)
+8. [LLM 프롬프트 보호](#llm-프롬프트-보호)
+9. [LLM 출력 처리](#llm-출력-처리)
+10. [암호화 Vault](#암호화-vault)
+11. [ZK 증명](#zk-증명)
+12. [LangChain 통합](#langchain-통합)
+13. [보안 참고사항](#보안-참고사항)
 
 ---
 
 ## 설치
 
-### Python (LLM 사용자 추천)
+### CLI (한 줄 설치 — macOS / Linux)
+
+```bash
+curl -sSf https://raw.githubusercontent.com/farm32df1/LLMguardZKP/main/zkguard/install.sh | sh
+```
+
+소스에서 빌드:
+
+```bash
+cargo build -p zkguard --features cli,proxy-server,vault-encrypt --release
+cp target/release/zkguard /usr/local/bin/
+```
+
+### Python
 
 ```bash
 # 소스에서 빌드 (Rust 툴체인 필요)
 cd bindings/python
 pip install maturin
-maturin develop --features stark
-
-# 또는 wheel 파일 직접 설치
-pip install zkguard-0.2.0-cp38-abi3-*.whl
+maturin develop --features stark,vault-encrypt
 ```
 
 ### Rust
@@ -63,6 +76,49 @@ zkguard = { path = "crates/zkguard-core", features = ["llm-guard"] }
 ```bash
 pip install zkguard langchain-core
 ```
+
+---
+
+## 프록시 서버 (가장 쉬움 — 모든 앱 보호)
+
+프록시는 앱(OpenClaw, 커스텀 챗봇 등)과 LLM API 사이에 위치합니다. 모든 프롬프트를 자동으로 스캔하고, API 키를 제거한 후 LLM 서버로 전달합니다.
+
+```bash
+# 프록시 시작
+zkguard proxy --port 8080 --provider anthropic
+
+# OpenAI용
+zkguard proxy --port 8080 --provider openai
+```
+
+앱의 API URL을 실제 API 대신 `http://localhost:8080`으로 변경하면 됩니다.
+
+```
+당신의 앱 → POST http://localhost:8080/v1/messages
+                       │
+                ┌──────▼──────┐
+                │ zkguard     │
+                │ proxy       │
+                │             │
+                │ 1. 파싱     │
+                │ 2. 스캔     │  ← API 키가 여기서 잡힘
+                │ 3. 제거     │
+                │ 4. 포워딩   │
+                └──────┬──────┘
+                       │
+             api.anthropic.com
+```
+
+**하는 것:**
+- 요청 본문의 모든 텍스트에서 API 키 패턴 스캔 (Anthropic, OpenAI, AWS, Google AI)
+- 감지된 키를 `[REDACTED]`로 교체
+- 정제된 요청을 실제 LLM API로 포워딩
+- LLM 응답은 그대로 반환
+
+**하지 않는 것:**
+- HTTP 헤더는 건드리지 않음 (앱의 인증 헤더는 정상 통과)
+- 이미지나 바이너리 첨부파일은 스캔 안 함
+- LLM 응답은 수정 안 함
 
 ---
 
@@ -418,26 +474,26 @@ handler.reset()
 
 ---
 
-## Rust CLI
+## CLI
 
 ```bash
-# CLI 빌드
-cargo build --features cli -p zkguard
+# 텍스트에서 API 키 스캔
+zkguard scan --text "내 키는 sk-ant-api03-..."
 
-# 텍스트에서 키 스캔
-echo "key=sk-ant-api03-AAAA..." | cargo run --features cli -p zkguard -- scan
+# 텍스트 보호 (키를 토큰으로 교체)
+zkguard sanitize --text "key=AKIAIOSFODNN7EXAMPLE"
 
-# 텍스트 보호
-echo "key=AKIAIOSFODNN7EXAMPLE" | cargo run --features cli -p zkguard -- sanitize
+# 프록시 서버 시작 (모든 앱 보호)
+zkguard proxy --port 8080 --provider anthropic
 
-# ZK 증명 생성
-cargo run --features cli -p zkguard -- prove --elements 115,107,45 --output proof.bin
+# ZK 증명 생성 (키 소유 증명)
+zkguard prove --key "secret" --output proof.bin
 
-# 증명 검증
-cargo run --features cli -p zkguard -- verify --input proof.bin
+# ZK 증명 검증
+zkguard verify --proof proof.bin
 
-# 전체 데모
-cargo run --features cli -p zkguard -- demo
+# 전체 데모 (보호 + 증명 + 검증)
+zkguard demo
 ```
 
 ---

@@ -54,7 +54,7 @@ fn get_poseidon2() -> Perm {
 pub fn bytes_to_field(bytes: &[u8]) -> FieldElement {
     let mut v = 0u64;
     for (i, &b) in bytes.iter().take(8).enumerate() {
-        v |= (b as u64) << (i * 8);
+        v |= u64::from(b) << (i * 8);
     }
     v % F::ORDER_U64
 }
@@ -143,6 +143,7 @@ pub fn constant_time_eq_fixed<const N: usize>(a: &[u8; N], b: &[u8; N]) -> bool 
 }
 
 /// Constant-time equality for variable-length slices.
+#[allow(clippy::many_single_char_names)]
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     let len_eq = a.len() == b.len();
     let max = a.len().max(b.len());

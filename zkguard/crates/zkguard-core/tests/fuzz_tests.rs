@@ -90,7 +90,7 @@ proptest! {
                 zkguard::llm_guard::scanner::ApiProvider::OpenAIProject => Some("sk-proj-"),
                 zkguard::llm_guard::scanner::ApiProvider::AwsAccessKey => Some("AKIA"),
                 zkguard::llm_guard::scanner::ApiProvider::GoogleAI => Some("AIza"),
-                _ => None,
+                zkguard::llm_guard::scanner::ApiProvider::Unknown => None,
             })
             .collect();
 

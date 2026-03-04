@@ -70,6 +70,7 @@ pub struct LlmProxy {
     api_key_handle: Option<KeyHandle>,
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl std::fmt::Debug for LlmProxy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LlmProxy")
@@ -222,15 +223,21 @@ impl LlmProxy {
             LlmProvider::OpenAI | LlmProvider::Custom => {
                 let mut messages = String::new();
                 if let Some(sys) = &request.system {
-                    messages.push_str(&format!(
+                    use core::fmt::Write;
+                    let _ = write!(
+                        messages,
                         r#"{{"role":"system","content":"{}"}},"#,
                         escape_json(sys),
-                    ));
+                    );
                 }
-                messages.push_str(&format!(
-                    r#"{{"role":"user","content":"{}"}}"#,
-                    escape_json(prompt),
-                ));
+                {
+                    use core::fmt::Write;
+                    let _ = write!(
+                        messages,
+                        r#"{{"role":"user","content":"{}"}}"#,
+                        escape_json(prompt),
+                    );
+                }
                 format!(
                     r#"{{"model":"{}","max_tokens":{},"messages":[{}]}}"#,
                     escape_json(&request.model),
@@ -312,7 +319,8 @@ fn escape_json(s: &str) -> String {
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
             c if c.is_control() => {
-                out.push_str(&format!("\\u{:04x}", c as u32));
+                use core::fmt::Write;
+                let _ = write!(out, "\\u{:04x}", c as u32);
             }
             c => out.push(c),
         }
@@ -327,8 +335,8 @@ mod tests {
     #[test]
     fn test_escape_json() {
         assert_eq!(escape_json(r#"hello "world""#), r#"hello \"world\""#);
-        assert_eq!(escape_json("line1\nline2"), r#"line1\nline2"#);
-        assert_eq!(escape_json("tab\there"), r#"tab\there"#);
+        assert_eq!(escape_json("line1\nline2"), r"line1\nline2");
+        assert_eq!(escape_json("tab\there"), r"tab\there");
     }
 
     #[test]

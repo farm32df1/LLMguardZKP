@@ -308,6 +308,7 @@ pub struct StarkProof {
     pub(crate) inner: Proof<MyStarkConfig>,
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl core::fmt::Debug for StarkProof {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("StarkProof")

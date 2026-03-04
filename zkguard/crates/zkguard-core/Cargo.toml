@@ -1,6 +1,6 @@
 [package]
 name = "zkguard"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["imbanjang"]
 description = "ZK-based credential protection for LLM workflows — prevents API key leakage using Plonky3 STARK commitments"
@@ -53,6 +53,10 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 # CLI argument parsing
 clap = { version = "4", features = ["derive"], optional = true }
 
+# Async HTTP server for proxy mode
+axum = { version = "0.7", optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+
 # Vault encryption (AES-256-GCM + Argon2id key derivation)
 aes-gcm = { version = "0.10", optional = true }
 argon2 = { version = "0.5", default-features = false, features = ["alloc"], optional = true }
@@ -63,6 +67,8 @@ rand_chacha = "0.3"
 criterion   = "0.5"
 proptest    = "1.4"
 test-case   = "3.3"
+tower       = { version = "0.5", features = ["util"] }
+tokio-test  = "0.4"
 
 [features]
 default = ["alloc", "full-p3", "std"]
@@ -87,6 +93,9 @@ llm-proxy = ["llm-guard", "dep:reqwest"]
 
 # Vault encryption (AES-256-GCM + Argon2id)
 vault-encrypt = ["llm-guard", "dep:aes-gcm", "dep:argon2"]
+
+# Proxy server mode (HTTP reverse proxy with auto-sanitize)
+proxy-server = ["llm-proxy", "dep:axum", "dep:tokio"]
 
 # CLI binary
 cli = ["llm-guard", "serde", "dep:clap"]

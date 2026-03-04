@@ -131,6 +131,7 @@ impl ContextScanner {
     }
 
     #[cfg(feature = "llm-guard")]
+    #[allow(clippy::unused_self)]
     fn scan_high_entropy(&self, text: &str, out: &mut Vec<DetectedKey>) {
         use crate::utils::constants::{
             ENTROPY_MAX_TOKEN_LEN, ENTROPY_MIN_TOKEN_LEN, ENTROPY_THRESHOLD,
@@ -248,7 +249,7 @@ fn shannon_entropy(s: &str) -> f64 {
         .iter()
         .filter(|&&c| c > 0)
         .map(|&c| {
-            let p = c as f64 / len;
+            let p = f64::from(c) / len;
             p * p.log2()
         })
         .sum::<f64>()

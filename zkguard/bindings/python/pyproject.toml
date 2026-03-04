@@ -5,14 +5,29 @@ build-backend = "maturin"
 [project]
 name = "zkguard"
 version = "0.2.0"
-description = "ZK-based credential protection for LLM workflows"
+description = "ZK-based credential protection for LLM workflows — prevents API key leakage in LLM prompts using local scanning, tokenized vaults, and STARK proofs"
+readme = "../../README.md"
 requires-python = ">=3.8"
 license = {text = "MIT OR Apache-2.0"}
+keywords = ["security", "llm", "api-key", "zero-knowledge", "stark", "credential-protection"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: 3",
     "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
 ]
+
+[project.urls]
+Homepage = "https://github.com/farm32df1/LLMguardZKP"
+Repository = "https://github.com/farm32df1/LLMguardZKP"
+Issues = "https://github.com/farm32df1/LLMguardZKP/issues"
 
 [tool.maturin]
 features = ["pyo3/extension-module", "stark", "vault-encrypt"]

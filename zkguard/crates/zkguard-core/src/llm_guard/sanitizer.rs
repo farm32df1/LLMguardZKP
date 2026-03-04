@@ -37,6 +37,7 @@ pub struct ContextSanitizer {
     handles: BTreeMap<[u8; HANDLE_ID_BYTES], KeyHandle>,
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl core::fmt::Debug for ContextSanitizer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("ContextSanitizer")

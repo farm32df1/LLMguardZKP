@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>zkguard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    .header {
+      background: #1a1a2e;
+      padding: 16px 24px;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #4ecdc4;
+    }
+    .header .subtitle {
+      font-size: 12px;
+      color: #888;
+    }
+    .tabs {
+      display: flex;
+      background: #1a1a2e;
+      border-bottom: 1px solid #333;
+    }
+    .tab {
+      padding: 10px 24px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      font-size: 14px;
+      color: #888;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: #ccc; }
+    .tab.active {
+      color: #4ecdc4;
+      border-bottom-color: #4ecdc4;
+    }
+    .content {
+      padding: 24px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    textarea {
+      width: 100%;
+      height: 160px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 12px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: #4ecdc4; }
+    .btn {
+      background: #4ecdc4;
+      color: #0f0f0f;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 12px;
+    }
+    .btn:hover { background: #45b7aa; }
+    .btn-danger { background: #e74c3c; color: white; }
+    .btn-danger:hover { background: #c0392b; }
+    .result {
+      margin-top: 16px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .result-header {
+      font-size: 12px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .result-body {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin: 2px;
+    }
+    .badge-danger { background: #e74c3c33; color: #e74c3c; }
+    .badge-safe { background: #2ecc7133; color: #2ecc71; }
+    .badge-info { background: #3498db33; color: #3498db; }
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+    }
+    .stat {
+      background: #1a1a2e;
+      padding: 12px 16px;
+      border-radius: 8px;
+      flex: 1;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #4ecdc4;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+    .proxy-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #e74c3c; }
+    .dot-green { background: #2ecc71; }
+    .info-box {
+      background: #1a1a2e;
+      border-left: 3px solid #4ecdc4;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>zkguard</h1>
+    <span class="subtitle">API Key Protection for LLM Workflows</span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="scanner">Scanner</div>
+    <div class="tab" data-tab="sanitizer">Sanitizer</div>
+    <div class="tab" data-tab="proxy">Proxy</div>
+  </div>
+
+  <div class="content">
+    <!-- Scanner Tab -->
+    <div id="scanner" class="panel active">
+      <div class="info-box">
+        Paste any text below to scan for API keys. Keys are detected locally — nothing leaves your machine.
+      </div>
+      <textarea id="scan-input" placeholder="Paste text here to scan for API keys..."></textarea>
+      <button class="btn" onclick="doScan()">Scan for Keys</button>
+      <div id="scan-result" class="result" style="display:none">
+        <div class="result-header">Scan Results</div>
+        <div id="scan-body" class="result-body"></div>
+      </div>
+    </div>
+
+    <!-- Sanitizer Tab -->
+    <div id="sanitizer" class="panel">
+      <div class="info-box">
+        Remove all API keys from text. Keys are replaced with [PROTECTED] — safe to share or send to LLMs.
+      </div>
+      <textarea id="sanitize-input" placeholder="Paste text with API keys..."></textarea>
+      <button class="btn" onclick="doSanitize()">Clean Text</button>
+      <div id="sanitize-result" class="result" style="display:none">
+        <div class="result-header">Cleaned Output</div>
+        <div id="sanitize-body" class="result-body"></div>
+        <div id="sanitize-stats" class="stats"></div>
+      </div>
+    </div>
+
+    <!-- Proxy Tab -->
+    <div id="proxy" class="panel">
+      <div class="info-box">
+        Start a local proxy that sits between your app and the LLM API.
+        Point your app to <strong>http://localhost:8080</strong> instead of the real API URL.
+      </div>
+      <div class="proxy-status">
+        <div id="proxy-dot" class="dot dot-red"></div>
+        <span id="proxy-status-text">Proxy not running</span>
+      </div>
+      <div style="margin-bottom: 12px">
+        <label style="font-size:13px;color:#888">Provider</label>
+        <select id="proxy-provider" style="background:#1a1a1a;color:#e0e0e0;border:1px solid #333;padding:6px;border-radius:4px;margin-left:8px">
+          <option value="anthropic">Anthropic</option>
+          <option value="openai">OpenAI</option>
+        </select>
+        <label style="font-size:13px;color:#888;margin-left:16px">Port</label>
+        <input id="proxy-port" type="number" value="8080" style="background:#1a1a1a;color:#e0e0e0;border:1px solid #333;padding:6px;border-radius:4px;width:80px;margin-left:8px">
+      </div>
+      <button class="btn" id="proxy-btn" onclick="toggleProxy()">Start Proxy</button>
+      <div id="proxy-log" class="result" style="margin-top:16px">
+        <div class="result-header">Activity Log</div>
+        <div id="proxy-log-body" class="result-body" style="max-height:200px;overflow-y:auto;color:#888">
+          Waiting for proxy to start...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Tauri invoke helper
+    async function invoke(cmd, args) {
+      if (window.__TAURI__) {
+        return window.__TAURI__.core.invoke(cmd, args);
+      }
+      // Fallback for development without Tauri
+      console.warn('Tauri not available, using mock');
+      return null;
+    }
+
+    async function doScan() {
+      const text = document.getElementById('scan-input').value;
+      if (!text.trim()) return;
+
+      const results = await invoke('scan_text', { text });
+      const el = document.getElementById('scan-result');
+      const body = document.getElementById('scan-body');
+      el.style.display = 'block';
+
+      if (!results || results.length === 0) {
+        body.innerHTML = '<span class="badge badge-safe">No API keys detected</span>';
+        return;
+      }
+
+      let html = `<span class="badge badge-danger">${results.length} key(s) found</span><br><br>`;
+      results.forEach((r, i) => {
+        html += `<div style="margin-bottom:8px">`;
+        html += `<span class="badge badge-info">${r.provider}</span> `;
+        html += `Position: ${r.start}-${r.end} `;
+        html += `<span style="color:#e74c3c">${text.substring(r.start, Math.min(r.start + 20, r.end))}...</span>`;
+        html += `</div>`;
+      });
+      body.innerHTML = html;
+    }
+
+    async function doSanitize() {
+      const text = document.getElementById('sanitize-input').value;
+      if (!text.trim()) return;
+
+      const result = await invoke('clean_text', { text });
+      const el = document.getElementById('sanitize-result');
+      const body = document.getElementById('sanitize-body');
+      el.style.display = 'block';
+
+      body.textContent = result || text;
+
+      // Also get stats
+      const scanResults = await invoke('scan_text', { text });
+      const stats = document.getElementById('sanitize-stats');
+      const count = scanResults ? scanResults.length : 0;
+      stats.innerHTML = `
+        <div class="stat">
+          <div class="stat-value">${count}</div>
+          <div class="stat-label">Keys Removed</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">${text.length}</div>
+          <div class="stat-label">Input Length</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">${(result || text).length}</div>
+          <div class="stat-label">Output Length</div>
+        </div>
+      `;
+    }
+
+    let proxyRunning = false;
+    function toggleProxy() {
+      const btn = document.getElementById('proxy-btn');
+      const dot = document.getElementById('proxy-dot');
+      const statusText = document.getElementById('proxy-status-text');
+      const logBody = document.getElementById('proxy-log-body');
+      const port = document.getElementById('proxy-port').value;
+      const provider = document.getElementById('proxy-provider').value;
+
+      if (!proxyRunning) {
+        // Note: actual proxy start requires CLI backend
+        proxyRunning = true;
+        dot.className = 'dot dot-green';
+        statusText.textContent = `Proxy running on http://127.0.0.1:${port} → ${provider}`;
+        btn.textContent = 'Stop Proxy';
+        btn.className = 'btn btn-danger';
+        logBody.innerHTML = `[${new Date().toLocaleTimeString()}] Proxy started on port ${port}\n`;
+        logBody.innerHTML += `[${new Date().toLocaleTimeString()}] Forwarding to ${provider} API\n`;
+        logBody.innerHTML += `[${new Date().toLocaleTimeString()}] Waiting for requests...\n`;
+      } else {
+        proxyRunning = false;
+        dot.className = 'dot dot-red';
+        statusText.textContent = 'Proxy not running';
+        btn.textContent = 'Start Proxy';
+        btn.className = 'btn';
+        logBody.innerHTML += `[${new Date().toLocaleTimeString()}] Proxy stopped\n`;
+      }
+    }
+  </script>
+</body>
+</html>

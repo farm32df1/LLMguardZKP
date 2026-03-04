@@ -1,5 +1,7 @@
 # Why zkguard?
 
+> **Automatically detects and removes API keys from LLM prompts before they leave your machine.** (+ Zero-knowledge proof of key ownership)
+
 ## The Problem: API Keys Leak Through LLMs
 
 Every day, developers accidentally paste API keys into LLM prompts:

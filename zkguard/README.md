@@ -1,10 +1,12 @@
 <p align="center">
   <h1 align="center">zkguard</h1>
   <p align="center">
-    <strong>Zero-knowledge credential protection for LLM workflows</strong>
+    <strong>LLM API 키 유출 자동 방지 보안 툴킷 + 영지식증명 기반 키 소유 검증</strong><br>
+    <em>Automatically detects and removes API keys from LLM prompts before they leave your machine.</em>
   </p>
   <p align="center">
     <a href="#quick-start">Quick Start</a> &middot;
+    <a href="#install">Install</a> &middot;
     <a href="docs/USAGE.md">Usage Guide</a> &middot;
     <a href="docs/ARCHITECTURE.md">Architecture</a> &middot;
     <a href="docs/WHY_ZKGUARD.md">Why zkguard?</a>
@@ -13,7 +15,7 @@
 
 ---
 
-API keys leak into LLM prompts every day. zkguard stops them **before they leave your machine**.
+API keys leak into LLM prompts every day — through AI chatbots, agent frameworks like OpenClaw, and automated pipelines. zkguard sits between your app and the LLM API, **automatically catching and removing API keys before they leave your machine**.
 
 ```python
 import zkguard
@@ -68,12 +70,60 @@ It scans text for credentials, replaces them with safe placeholders, stores the 
 | **LangChain Integration** | Callback handler for automatic prompt/response monitoring |
 | **Poseidon2 Hashing** | Domain-separated hashing with 16 unique `ZKGUARD::` tags |
 | **Merkle Batching** | Aggregate multiple proofs into a single Merkle root |
-| **CLI** | `scan`, `sanitize`, `prove`, `verify` from the command line |
+| **Proxy Server** | Reverse proxy that auto-sanitizes LLM API requests (axum + tokio) |
+| **CLI** | `scan`, `sanitize`, `prove`, `verify`, `proxy` from the command line |
 | **`#![forbid(unsafe_code)]`** | No unsafe Rust in the core crate |
+
+## Install
+
+### CLI (One Command)
+
+```bash
+# macOS / Linux
+curl -sSf https://raw.githubusercontent.com/farm32df1/LLMguardZKP/main/zkguard/install.sh | sh
+
+# Or build from source
+cargo build -p zkguard --features cli,proxy-server,vault-encrypt --release
+cp target/release/zkguard /usr/local/bin/
+```
+
+### Python
+
+```bash
+# From source (PyPI coming soon)
+cd bindings/python && pip install maturin && maturin develop --features stark,vault-encrypt
+```
 
 ## Quick Start
 
-### Easy API (For Everyone)
+### Proxy Server (Easiest — Protects Any App)
+
+Point your LLM app (OpenClaw, etc.) at `localhost:8080` instead of the real API:
+
+```bash
+# Start the proxy
+zkguard proxy --port 8080 --provider anthropic
+
+# Your app now goes through zkguard — all API keys in prompts are auto-removed
+# App → localhost:8080 → zkguard (sanitize) → api.anthropic.com
+```
+
+```
+App/OpenClaw → POST http://localhost:8080/v1/messages
+                         │
+                  ┌──────▼──────┐
+                  │ zkguard     │
+                  │ proxy       │
+                  │             │
+                  │ 1. Parse    │
+                  │ 2. Sanitize │  ← API keys removed here
+                  │ 3. Forward  │
+                  └──────┬──────┘
+                         │
+               api.anthropic.com / api.openai.com
+```
+
+### Easy API (Python)
 
 ```bash
 cd bindings/python && pip install maturin && maturin develop --features stark,vault-encrypt
@@ -117,6 +167,26 @@ llm_response = your_llm(result.content)
 
 # Step 3: Process tokens in LLM output
 final = guard.process_tokens(llm_response, lambda token: "[REDACTED]")
+```
+
+### CLI
+
+```bash
+# Scan for API keys
+zkguard scan --text "my key is sk-ant-api03-..."
+
+# Sanitize text
+zkguard sanitize --text "key=AKIAIOSFODNN7EXAMPLE"
+
+# Proxy server (sits between your app and the LLM API)
+zkguard proxy --port 8080 --provider anthropic
+
+# ZK proof of key ownership
+zkguard prove --key "secret" --output proof.bin
+zkguard verify --proof proof.bin
+
+# Full demo
+zkguard demo
 ```
 
 ### Rust
@@ -203,14 +273,14 @@ assert verifier.verify(proof)  # True — key ownership proven, key NOT revealed
 │ types     │ range_air │ constants  │ batch      │ handle    sanitizer │
 │ traits    │ key_commit│ compress   │            │ audit     persist   │
 │           │ real_stark│            │            │ proxy     encrypt   │
-│           │ config    │            │            │                     │
+│           │ config    │            │            │ proxy_srv            │
 ├───────────┴───────────┴────────────┴────────────┴─────────────────────┤
 │                                                                       │
-│  ┌──────────────────┐    ┌─────────────────────┐                      │
-│  │ Python (PyO3)    │    │ LangChain (pure Py)  │                     │
-│  │ pip install      │    │ callback + middleware │                     │
-│  │ zkguard          │    │ zkguard_langchain     │                     │
-│  └──────────────────┘    └─────────────────────┘                      │
+│  ┌──────────────────┐  ┌─────────────────────┐  ┌──────────────────┐  │
+│  │ Python (PyO3)    │  │ LangChain (pure Py)  │  │ CLI Binary       │  │
+│  │ pip install      │  │ callback + middleware │  │ scan/sanitize/   │  │
+│  │ zkguard          │  │ zkguard_langchain     │  │ prove/proxy      │  │
+│  └──────────────────┘  └─────────────────────┘  └──────────────────┘  │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -260,10 +330,14 @@ cargo test -p zkguard --features serde         # 50 tests
 cargo test -p zkguard --features llm-guard     # 111 tests (77 unit + 20 fuzz + 14 integration)
 cargo test -p zkguard --features llm-proxy     # 123 tests (89 unit + 20 fuzz + 14 integration)
 cargo test -p zkguard --features vault-encrypt # 121 tests (87 unit + 20 fuzz + 14 integration)
+cargo test -p zkguard --features proxy-server  # 150 tests (116 unit + 20 fuzz + 14 integration)
+
+# CLI binary build
+cargo build -p zkguard --features cli,proxy-server,vault-encrypt --release
 
 # Code quality
 cargo fmt --all -- --check
-cargo clippy -p zkguard --all-targets --features vault-encrypt -- -D warnings
+cargo clippy -p zkguard --all-targets --features proxy-server -- -D warnings
 
 # Python bindings (39 tests)
 cd bindings/python
@@ -280,9 +354,10 @@ PYTHONPATH=. pytest tests/ -v
 ```
 zkguard/
 ├── Cargo.toml                        # Workspace root
+├── install.sh                        # CLI install script (curl | sh)
 ├── .github/workflows/
 │   ├── ci.yml                        # CI (Rust + Python + LangChain, cross-platform)
-│   └── release.yml                   # PyPI release (tag-triggered)
+│   └── release.yml                   # PyPI + CLI binary release (tag-triggered)
 ├── LICENSE-MIT
 ├── LICENSE-APACHE
 ├── crates/
@@ -293,8 +368,9 @@ zkguard/
 │       │   ├── utils/      hash.rs, constants.rs, compression.rs
 │       │   ├── batching/   merkle.rs, mod.rs
 │       │   ├── llm_guard/  vault.rs, scanner.rs, handle.rs, sanitizer.rs,
-│       │   │               audit.rs, persistence.rs, encrypted_persistence.rs, proxy.rs
-│       │   └── bin/        main.rs (CLI)
+│       │   │               audit.rs, persistence.rs, encrypted_persistence.rs,
+│       │   │               proxy.rs, proxy_server.rs
+│       │   └── bin/        main.rs (CLI + proxy server)
 │       ├── tests/          llm_scenarios.rs, fuzz_tests.rs
 │       └── examples/       basic_proof.rs, key_protection.rs, full_demo.rs
 ├── bindings/
@@ -311,6 +387,10 @@ zkguard/
 │       │   ├── callback.py
 │       │   └── middleware.py
 │       └── tests/test_callback.py    # 8 tests
+├── apps/
+│   └── desktop/                      # Tauri desktop GUI (scaffolding)
+│       ├── src-tauri/                # Rust backend (Tauri commands)
+│       └── src/index.html            # Frontend UI
 ├── examples/python/
 │   ├── basic_usage.py
 │   ├── easy_example.py               # Easy API usage examples for beginners
@@ -344,10 +424,11 @@ zkguard/
 | `full-p3` | Yes | Plonky3 STARK prover/verifier |
 | `std` | Yes | OS CSPRNG + standard library |
 | `llm-guard` | No | API key detection and protection |
-| `llm-proxy` | No | HTTP proxy for LLM API calls (reqwest) |
+| `llm-proxy` | No | HTTP proxy client for LLM API calls (reqwest) |
+| `proxy-server` | No | HTTP reverse proxy server (axum + tokio) |
 | `serde` | No | JSON/bincode serialization for StarkProof |
 | `vault-encrypt` | No | AES-256-GCM encrypted vault (Argon2id KDF) |
-| `cli` | No | CLI binary (scan, sanitize, prove, verify) |
+| `cli` | No | CLI binary (scan, sanitize, prove, verify, proxy) |
 
 ## Security Properties
 
@@ -386,7 +467,7 @@ zkguard/
 
 ## Roadmap
 
-- [x] LLM API Proxy (v0.2 — `llm-proxy` feature)
+- [x] LLM API Proxy client (v0.2 — `llm-proxy` feature)
 - [x] StarkProof serialization (v0.2 — JSON + bincode)
 - [x] Audit logging (v0.2 — hash-chain integrity)
 - [x] Persistent vault storage (v0.2 — MAC-verified file format)
@@ -394,6 +475,9 @@ zkguard/
 - [x] LangChain integration (v0.2 — callback handler, 8 tests)
 - [x] Vault disk encryption (v0.3 — AES-256-GCM + Argon2id)
 - [x] GitHub Actions CI (v0.3 — Rust + Python + LangChain, cross-platform)
+- [x] HTTP reverse proxy server (v0.3 — axum, 27 E2E tests)
+- [x] CLI binary release (v0.3 — 5 platforms, `install.sh`)
+- [x] Desktop GUI scaffolding (v0.3 — Tauri)
 - [ ] Poseidon2-in-AIR: full hash circuit inside STARK (v0.4)
 - [ ] Node.js bindings via napi-rs or C FFI (v0.4)
 - [ ] Async Python support (v0.4)

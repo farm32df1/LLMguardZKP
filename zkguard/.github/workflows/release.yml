@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -68,6 +68,94 @@ jobs:
         with:
           name: sdist
           path: bindings/python/dist/*.tar.gz
+
+  # ── Build CLI binaries for multiple platforms ─────────────────────────────
+  binary:
+    name: binary / ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary_name: zkguard
+            asset_name: zkguard-linux-x86_64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            binary_name: zkguard
+            asset_name: zkguard-linux-aarch64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary_name: zkguard
+            asset_name: zkguard-darwin-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary_name: zkguard
+            asset_name: zkguard-darwin-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary_name: zkguard.exe
+            asset_name: zkguard-windows-x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (aarch64-linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build CLI binary
+        working-directory: crates/zkguard-core
+        run: cargo build --features cli,llm-proxy,vault-encrypt --release --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Package binary (unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../${{ matrix.asset_name }}.tar.gz ${{ matrix.binary_name }}
+
+      - name: Package binary (windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          Compress-Archive -Path ${{ matrix.binary_name }} -DestinationPath ../../../${{ matrix.asset_name }}.zip
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: |
+            ${{ matrix.asset_name }}.tar.gz
+            ${{ matrix.asset_name }}.zip
+
+  # ── Create GitHub Release with binaries ──────────────────────────────────
+  github-release:
+    name: GitHub Release
+    needs: [binary]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: zkguard-*
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
 
   # ── Publish to PyPI ────────────────────────────────────────────────────────
   publish:

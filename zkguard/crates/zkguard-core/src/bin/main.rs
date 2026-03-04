@@ -56,6 +56,22 @@ enum Commands {
         proof: PathBuf,
     },
 
+    /// Start a local proxy server that sanitizes LLM API requests
+    #[cfg(feature = "proxy-server")]
+    Proxy {
+        /// Port to listen on
+        #[arg(short, long, default_value = "8080")]
+        port: u16,
+
+        /// LLM provider: anthropic, openai, or a custom URL
+        #[arg(long, default_value = "anthropic")]
+        provider: String,
+
+        /// Bind address
+        #[arg(long, default_value = "127.0.0.1")]
+        bind: String,
+    },
+
     /// Run a full demo: sanitize + prove + verify
     Demo,
 }
@@ -68,6 +84,12 @@ fn main() {
         Commands::Sanitize { text } => cmd_sanitize(text),
         Commands::Prove { key, output } => cmd_prove(key, output),
         Commands::Verify { proof } => cmd_verify(proof),
+        #[cfg(feature = "proxy-server")]
+        Commands::Proxy {
+            port,
+            provider,
+            bind,
+        } => cmd_proxy(port, provider, bind),
         Commands::Demo => cmd_demo(),
     }
 }
@@ -177,6 +199,34 @@ fn cmd_verify(proof_path: PathBuf) {
             println!("INVALID - verification error: {}", e);
             std::process::exit(1);
         }
+    }
+}
+
+#[cfg(feature = "proxy-server")]
+fn cmd_proxy(port: u16, provider: String, bind: String) {
+    let target_base_url = match provider.to_lowercase().as_str() {
+        "anthropic" => "https://api.anthropic.com".to_string(),
+        "openai" => "https://api.openai.com".to_string(),
+        url if url.starts_with("http") => url.to_string(),
+        other => {
+            eprintln!(
+                "Error: unknown provider '{}'. Use: anthropic, openai, or a full URL",
+                other
+            );
+            std::process::exit(1);
+        }
+    };
+
+    let config = zkguard::llm_guard::proxy_server::ProxyConfig {
+        port,
+        target_base_url,
+        bind_addr: bind,
+    };
+
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+    if let Err(e) = rt.block_on(zkguard::llm_guard::proxy_server::start_proxy_server(config)) {
+        eprintln!("Proxy server error: {}", e);
+        std::process::exit(1);
     }
 }
 
