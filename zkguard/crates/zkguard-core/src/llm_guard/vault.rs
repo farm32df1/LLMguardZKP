@@ -107,9 +107,34 @@ impl SecretVault {
         f(&entry.key)
     }
 
+    /// Execute `f` with a reference to the raw key bytes identified by `handle_id`.
+    ///
+    /// Same closure-based contract as [`Self::with_key`], but accepts a bare
+    /// `HandleId` — used by the proxy's `TokenMap` where only the opaque ID
+    /// travels alongside the dummy token. The commitment re-derivation that
+    /// `with_key` performs is skipped here because no external commitment is
+    /// supplied; the vault file's MAC layer already guarantees the stored
+    /// bytes were not tampered at rest.
+    pub fn with_key_by_id<F, R>(&self, handle_id: &[u8; HANDLE_ID_BYTES], f: F) -> Result<R>
+    where
+        F: FnOnce(&[u8]) -> Result<R>,
+    {
+        let entry = self
+            .entries
+            .get(handle_id)
+            .ok_or(ZKGuardError::HandleNotFound)?;
+        f(&entry.key)
+    }
+
     /// Remove a key from the vault (zeroize on drop of VaultEntry).
     pub fn revoke(&mut self, handle: &KeyHandle) -> bool {
         self.entries.remove(&handle.id.0).is_some()
+    }
+
+    /// Remove a key from the vault by its opaque `HandleId`.
+    /// Returns true if the entry existed and was zeroized.
+    pub fn revoke_by_id(&mut self, handle_id: &[u8; HANDLE_ID_BYTES]) -> bool {
+        self.entries.remove(handle_id).is_some()
     }
 
     pub fn len(&self) -> usize {
@@ -239,6 +264,37 @@ mod tests {
         assert_eq!(vault.len(), 1);
         assert!(vault.revoke(&handle));
         assert_eq!(vault.len(), 0);
+    }
+
+    #[test]
+    fn test_with_key_by_id() {
+        let mut vault = SecretVault::new();
+        let handle = vault.store(b"by-id-key").unwrap();
+        let len = vault
+            .with_key_by_id(&handle.id().0, |key| {
+                assert_eq!(key, b"by-id-key");
+                Ok(key.len())
+            })
+            .unwrap();
+        assert_eq!(len, 9);
+    }
+
+    #[test]
+    fn test_with_key_by_id_unknown() {
+        let vault = SecretVault::new();
+        let bogus = [0xAAu8; HANDLE_ID_BYTES];
+        let result = vault.with_key_by_id(&bogus, |_| Ok(()));
+        assert!(matches!(result, Err(ZKGuardError::HandleNotFound)));
+    }
+
+    #[test]
+    fn test_revoke_by_id() {
+        let mut vault = SecretVault::new();
+        let handle = vault.store(b"drop-me").unwrap();
+        assert_eq!(vault.len(), 1);
+        assert!(vault.revoke_by_id(&handle.id().0));
+        assert_eq!(vault.len(), 0);
+        assert!(!vault.revoke_by_id(&handle.id().0));
     }
 
     #[test]

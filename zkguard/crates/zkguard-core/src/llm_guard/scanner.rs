@@ -100,6 +100,21 @@ impl ContextScanner {
 
     #[cfg(feature = "llm-guard")]
     pub fn scan(&self, text: &str) -> Vec<DetectedKey> {
+        let mut found = self.scan_providers_only(text);
+        // Entropy heuristic for unknown formats
+        self.scan_high_entropy(text, &mut found);
+        found
+    }
+
+    /// Scan using only provider-specific regexes — no entropy heuristic.
+    ///
+    /// Used on the proxy's response path where Shannon-entropy triggers on
+    /// unrelated high-entropy payloads (UUIDs, base64 blobs, user-supplied
+    /// strings) would cause legitimate response content to be redacted as a
+    /// false positive. Provider regexes are precise enough to use one-way in
+    /// the return direction.
+    #[cfg(feature = "llm-guard")]
+    pub fn scan_providers_only(&self, text: &str) -> Vec<DetectedKey> {
         let mut found = Vec::new();
 
         let providers: &[(&regex::Regex, ApiProvider)] = &[
@@ -121,11 +136,9 @@ impl ContextScanner {
         }
 
         // Deduplicate: remove matches whose span overlaps a more-specific match.
-        // Priority: Anthropic/OpenAIProject > OpenAI (since "sk-" is a prefix of "sk-ant-"/"sk-proj-").
+        // Priority: Anthropic/OpenAIProject > OpenAI (since "sk-" is a prefix
+        // of "sk-ant-"/"sk-proj-").
         deduplicate_overlapping(&mut found);
-
-        // Entropy heuristic for unknown formats
-        self.scan_high_entropy(text, &mut found);
 
         found
     }

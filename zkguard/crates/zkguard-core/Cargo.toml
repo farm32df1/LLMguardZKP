@@ -61,6 +61,9 @@ tokio = { version = "1", features = ["full"], optional = true }
 aes-gcm = { version = "0.10", optional = true }
 argon2 = { version = "0.5", default-features = false, features = ["alloc"], optional = true }
 
+# Secret password prompt for CLI master passphrase (no echo)
+rpassword = { version = "7", optional = true }
+
 [dev-dependencies]
 rand        = "0.8"
 rand_chacha = "0.3"
@@ -94,11 +97,13 @@ llm-proxy = ["llm-guard", "dep:reqwest"]
 # Vault encryption (AES-256-GCM + Argon2id)
 vault-encrypt = ["llm-guard", "dep:aes-gcm", "dep:argon2"]
 
-# Proxy server mode (HTTP reverse proxy with auto-sanitize)
-proxy-server = ["llm-proxy", "dep:axum", "dep:tokio"]
+# Proxy server mode (HTTP reverse proxy with auto-sanitize).
+# Always pulls in vault-encrypt so the on-disk store is AES-256-GCM by construction.
+proxy-server = ["llm-proxy", "vault-encrypt", "dep:axum", "dep:tokio", "dep:rpassword"]
 
-# CLI binary
-cli = ["llm-guard", "serde", "dep:clap"]
+# CLI binary — always includes vault encryption + password prompt so
+# the key manager cannot accidentally write plaintext to disk.
+cli = ["llm-guard", "vault-encrypt", "serde", "dep:clap", "dep:rpassword"]
 
 [[example]]
 name = "basic_proof"

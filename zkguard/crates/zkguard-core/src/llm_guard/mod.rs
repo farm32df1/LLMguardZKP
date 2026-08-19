@@ -3,6 +3,7 @@ pub mod handle;
 pub mod persistence;
 pub mod sanitizer;
 pub mod scanner;
+pub mod token_map;
 pub mod vault;
 
 #[cfg(feature = "vault-encrypt")]
@@ -29,5 +30,7 @@ pub use encrypted_persistence::{
 #[cfg(feature = "llm-proxy")]
 pub use proxy::{LlmProvider, LlmProxy, LlmRequest, LlmResponse};
 
+pub use token_map::TokenMap;
+
 #[cfg(feature = "proxy-server")]
-pub use proxy_server::{start_proxy_server, ProxyConfig};
+pub use proxy_server::{default_data_dir, start_proxy_server, ProxyConfig};
